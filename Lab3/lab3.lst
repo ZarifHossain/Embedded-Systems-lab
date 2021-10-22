@@ -1,0 +1,654 @@
+
+
+
+ARM Macro Assembler    Page 1 
+
+
+    1 00000000         ;****************** Lab3.s ***************
+    2 00000000         ; Program written by: Zarif Hossain and Ayush RoyChowdhu
+                       ry
+    3 00000000         ; Date Created: 2/4/2017
+    4 00000000         ; Last Modified: 8/29/2021
+    5 00000000         ; Brief description of the program
+    6 00000000         ;   The LED toggles at 2 Hz and a varying duty-cycle
+    7 00000000         ; Hardware connections (External: Two buttons and one LE
+                       D)
+    8 00000000         ;  Change is Button input  (1 means pressed, 0 means not
+                        pressed)
+    9 00000000         ;  Breathe is Button input  (1 means pressed, 0 means no
+                       t pressed)
+   10 00000000         ;  LED is an output (1 activates external LED)
+   11 00000000         ; Overall functionality of this system is to operate lik
+                       e this
+   12 00000000         ;   1) Make LED an output and make Change and Breathe in
+                       puts.
+   13 00000000         ;   2) The system starts with the the LED toggling at 2H
+                       z,
+   14 00000000         ;      which is 2 times per second with a duty-cycle of 
+                       30%.
+   15 00000000         ;      Therefore, the LED is ON for 150ms and off for 35
+                       0 ms.
+   16 00000000         ;   3) When the Change button is pressed-and-released in
+                       crease
+   17 00000000         ;      the duty cycle by 20% (modulo 100%). Therefore fo
+                       r each
+   18 00000000         ;      press-and-release the duty cycle changes from 30%
+                        to 70% to 70%
+   19 00000000         ;      to 90% to 10% to 30% so on
+   20 00000000         ;   4) Implement a "breathing LED" when Breathe Switch i
+                       s pressed:
+   21 00000000         ; PortE device registers
+   22 00000000 400243FC 
+                       GPIO_PORTE_DATA_R
+                               EQU              0x400243FC
+   23 00000000 40024400 
+                       GPIO_PORTE_DIR_R
+                               EQU              0x40024400
+   24 00000000 4002451C 
+                       GPIO_PORTE_DEN_R
+                               EQU              0x4002451C
+   25 00000000 400FE608 
+                       SYSCTL_RCGCGPIO_R
+                               EQU              0x400FE608
+   26 00000000         
+   27 00000000                 IMPORT           TExaS_Init
+   28 00000000                 THUMB
+   29 00000000                 AREA             DATA, ALIGN=2
+   30 00000000         ;global variables go here
+   31 00000000         
+   32 00000000                 AREA             |.text|, CODE, READONLY, ALIGN=
+2
+   33 00000000                 THUMB
+   34 00000000                 EXPORT           EID1
+   35 00000000 61 72 36 
+              38 34 33 
+              33 00    EID1    DCB              "ar68433",0 ;replace ABC123 wit
+
+
+
+ARM Macro Assembler    Page 2 
+
+
+                                                            h your EID
+   36 00000008                 EXPORT           EID2
+   37 00000008 7A 6D 68 
+              33 34 35 
+              00       EID2    DCB              "zmh345",0  ;replace ABC123 wit
+                                                            h your EID
+   38 0000000F 00              ALIGN            4
+   39 00000010         
+   40 00000010                 EXPORT           Start
+   41 00000010         
+   42 00000010         Start
+   43 00000010         ; TExaS_Init sets bus clock at 80 MHz, interrupts, ADC1,
+                        TIMER3, TIMER5, and UART0
+   44 00000010 F04F 0002       MOV              R0,#2       ;0 for TExaS oscill
+                                                            oscope, 1 for PORTE
+                                                             logic analyzer, 2 
+                                                            for Lab3 grader, 3 
+                                                            for none
+   45 00000014 F7FF FFFE       BL               TExaS_Init  ;enables interrupts
+                                                            , prints the pin se
+                                                            lections based on E
+                                                            ID1 EID2
+   46 00000018         ; Your Initialization goes here
+   47 00000018 4857            LDR              R0, =SYSCTL_RCGCGPIO_R
+   48 0000001A 7801            LDRB             R1, [R0]
+   49 0000001C F041 0110       ORR              R1, #0x10   ;set bit 4 (Port E)
+                                                             to turn on clock 
+   50 00000020 7001            STRB             R1, [R0]
+   51 00000022         
+   52 00000022 BF00            NOP
+   53 00000024 BF00            NOP
+   54 00000026         
+   55 00000026         ;PE1 - Change Switch
+   56 00000026         ;PE 2 - Breath Switch
+   57 00000026         ;PE 4 - LED
+   58 00000026         
+   59 00000026 4855            LDR              R0, =GPIO_PORTE_DIR_R
+   60 00000028 7801            LDRB             R1, [R0]
+   61 0000002A F021 0106       BIC              R1, #0x06   ;output is PE4
+   62 0000002E F041 0110       ORR              R1, #0x10
+   63 00000032 7001            STRB             R1, [R0]
+   64 00000034         
+   65 00000034 4852            LDR              R0, =GPIO_PORTE_DEN_R
+   66 00000036 7801            LDRB             R1, [R0]
+   67 00000038 F041 0116       ORR              R1, #0x16   ;00010110
+   68 0000003C 7001            STRB             R1, [R0]
+   69 0000003E         
+   70 0000003E F04F 0196       LDR              R1, =150    ;to use later on as
+                                                             delay for duty cyc
+                                                            le
+   71 00000042         
+   72 00000042         ;50, 150, 250, 350, 450
+   73 00000042         
+   74 00000042         
+   75 00000042         loop
+   76 00000042 4C50            LDR              R4, =GPIO_PORTE_DATA_R
+   77 00000044 6825            LDR              R5, [R4]
+   78 00000046 F005 0202       AND              R2, R5, #0x02 ; change switch i
+                                                            s isolated
+
+
+
+ARM Macro Assembler    Page 3 
+
+
+   79 0000004A 6825            LDR              R5, [R4]
+   80 0000004C F005 0304       AND              R3, R5, #0x04 ;breath switch is
+                                                             isolated
+   81 00000050         
+   82 00000050         breath_switch
+   83 00000050 B412            PUSH             {R1, R4}
+   84 00000052 2B04            CMP              R3, #0x04   ; see if it's on
+   85 00000054 D041            BEQ              breathe_start ;check if breath 
+                                                            button is pressed 
+   86 00000056 BC12            POP              {R1, R4}
+   87 00000058 D1FF            BNE              change_switch
+   88 0000005A         
+   89 0000005A         change_switch
+   90 0000005A 4C4A            LDR              R4, =GPIO_PORTE_DATA_R
+   91 0000005C 6825            LDR              R5, [R4]
+   92 0000005E F005 0202       AND              R2, R5, #0x02 ; change switch i
+                                                            s isolated
+   93 00000062 2A02            CMP              R2, #0x02   ;see if change swit
+                                                            ch is pressed
+   94 00000064 D000            BEQ              change_release ; see if change 
+                                                            switch is let go, c
+                                                            hange
+   95 00000066 D113            BNE              duty_cycle  ; change duty cycle
+                                                            
+   96 00000068         
+   97 00000068         change_release
+   98 00000068 4C46            LDR              R4, =GPIO_PORTE_DATA_R
+   99 0000006A 6825            LDR              R5, [R4]
+  100 0000006C F005 0202       AND              R2, R5, #0x02 ; change switch i
+                                                            s isolated
+  101 00000070 2A00            CMP              R2,#0x0
+  102 00000072 D000            BEQ              increase_percent
+  103 00000074 D1F8            BNE              change_release
+  104 00000076         
+  105 00000076         increase_percent
+  106 00000076 F44F 78E1       LDR              R8, =450
+  107 0000007A EBB8 0701       SUBS             R7, R8, R1
+  108 0000007E D003            BEQ              lowest
+  109 00000080 F101 0164       ADD              R1, R1, #100
+  110 00000084 F000 F804       BL               duty_cycle
+  111 00000088         
+  112 00000088         lowest
+  113 00000088 F04F 0132       LDR              R1, =50
+  114 0000008C F000 F800       BL               duty_cycle
+  115 00000090         
+  116 00000090         duty_cycle
+  117 00000090 B403            PUSH             {R0, R1}
+  118 00000092 F000 F80B       BL               LED_ON      ;turns on LED
+  119 00000096 F000 F817       BL               delay
+  120 0000009A F000 F80E       BL               LED_OFF     ; turns off LED
+  121 0000009E F44F 72FA       LDR              R2, =500
+  122 000000A2 1A51            SUBS             R1, R2, R1
+  123 000000A4 F000 F810       BL               delay
+  124 000000A8 BC03            POP              {R0, R1}
+  125 000000AA E7CA            B                loop
+  126 000000AC         
+  127 000000AC         LED_ON                               ;
+  128 000000AC B40C            PUSH             {R2, R3}
+  129 000000AE 4A35            LDR              R2, =GPIO_PORTE_DATA_R
+
+
+
+ARM Macro Assembler    Page 4 
+
+
+  130 000000B0 F043 0310       ORR              R3, R3, #0x10 ; LED ON
+  131 000000B4 7013            STRB             R3, [R2]
+  132 000000B6 BC0C            POP              {R2, R3}
+  133 000000B8         
+  134 000000B8 4770            BX               LR
+  135 000000BA         
+  136 000000BA         LED_OFF
+  137 000000BA B40C            PUSH             {R2, R3}
+  138 000000BC 4A31            LDR              R2, =GPIO_PORTE_DATA_R
+  139 000000BE F023 0310       BIC              R3, R3, #0x10
+  140 000000C2 7013            STRB             R3, [R2]
+  141 000000C4 BC0C            POP              {R2, R3}
+  142 000000C6 4770            BX               LR
+  143 000000C8         
+  144 000000C8         delay
+  145 000000C8 B403            PUSH             {R0, R1}
+  146 000000CA         first
+  147 000000CA F644 6220       LDR              R2, =80000/4
+  148 000000CE FB02 F201       MUL              R2, R2, R1
+  149 000000D2         second
+  150 000000D2 1E52            SUBS             R2, R2, #1
+  151 000000D4 D1FD            BNE              second
+  152 000000D6 BC03            POP              {R0, R1}
+  153 000000D8 4770            BX               LR
+  154 000000DA         
+  155 000000DA         breathe_start
+  156 000000DA B403            PUSH             {R0, R1}
+  157 000000DC F04F 0A64       LDR              R10, =100   ; 10% 
+  158 000000E0         
+  159 000000E0         ; NC = FT    C =FT/N
+  160 000000E0         ; F = clock frequency
+  161 000000E0         ;T = time delay 
+  162 000000E0         ; number of cycles
+  163 000000E0         breathe
+  164 000000E0 F7FF FFE4       BL               LED_ON
+  165 000000E4 F000 F83D       BL               delay_breathe
+  166 000000E8 F7FF FFE7       BL               LED_OFF
+  167 000000EC F44F 727A       LDR              R2, =1000   ;sets 
+  168 000000F0 1A51            SUBS             R1, R2, R1
+  169 000000F2 F000 F836       BL               delay_breathe
+  170 000000F6 4C23            LDR              R4, =GPIO_PORTE_DATA_R
+  171 000000F8 6825            LDR              R5, [R4]
+  172 000000FA F005 0304       AND              R3, R5, #0x04 ;breath switch is
+                                                             isolated
+  173 000000FE 2B04            CMP              R3, #0x04   ; check if breath s
+                                                            witch is pressed
+  174 00000100 D001            BEQ              breathe_increase
+  175 00000102 BC03            POP              {R0, R1}
+  176 00000104 D19D            BNE              loop
+  177 00000106         
+  178 00000106         breathe_increase
+  179 00000106 F44F 7961       LDR              R9, =900
+  180 0000010A EBB9 080A       SUBS             R8, R9, R10
+  181 0000010E F1B8 0F00       CMP              R8, #0x0
+  182 00000112 D004            BEQ              breathe_descending_start
+  183 00000114 F10A 0AC8       ADD              R10, R10, #200
+  184 00000118 2B04            CMP              R3, #0x04
+  185 0000011A D0E1            BEQ              breathe
+  186 0000011C D191            BNE              loop
+
+
+
+ARM Macro Assembler    Page 5 
+
+
+  187 0000011E         
+  188 0000011E         breathe_descending_start             ; starts from 90% a
+                                                            nd work backwards b
+                                                            y 10%
+  189 0000011E F44F 7A61       LDR              R10, =900
+  190 00000122         breathe_descending
+  191 00000122 F7FF FFC3       BL               LED_ON
+  192 00000126 F000 F81C       BL               delay_breathe
+  193 0000012A F7FF FFC6       BL               LED_OFF
+  194 0000012E F44F 727A       LDR              R2, =1000
+  195 00000132 1A51            SUBS             R1, R2, R1
+  196 00000134 F000 F815       BL               delay_breathe
+  197 00000138 4C12            LDR              R4, =GPIO_PORTE_DATA_R
+  198 0000013A 6825            LDR              R5, [R4]
+  199 0000013C F005 0304       AND              R3, R5, #0x04 ;breath switch is
+                                                             isolated
+  200 00000140 2B04            CMP              R3, #0x04
+  201 00000142 D001            BEQ              breathe_decrease
+  202 00000144 F47F AF7D       BNE              loop
+  203 00000148         
+  204 00000148         breathe_decrease
+  205 00000148 F04F 0964       LDR              R9, =100
+  206 0000014C EBB9 080A       SUBS             R8, R9, R10
+  207 00000150 F1B8 0F00       CMP              R8, #0x0
+  208 00000154 D0C4            BEQ              breathe
+  209 00000156 F1BA 0AC8       SUBS             R10, R10, #200
+  210 0000015A 2B04            CMP              R3, #0x04
+  211 0000015C D0E1            BEQ              breathe_descending
+  212 0000015E F47F AF70       BNE              loop
+  213 00000162         
+  214 00000162         delay_breathe
+  215 00000162 B403            PUSH             {R0, R1}
+  216 00000164         
+  217 00000164         ;10% on,  90% on, 20% on, 80%  off.... 
+  218 00000164         first_breathe
+  219 00000164 F04F 02C8       LDR              R2, =800/4
+  220 00000168 FB02 F20A       MUL              R2, R2, R10
+  221 0000016C         second_breathe
+  222 0000016C 1E52            SUBS             R2, R2, #1
+  223 0000016E D1B0            BNE              second
+  224 00000170 BC03            POP              {R0, R1}
+  225 00000172 4770            BX               LR
+  226 00000174         
+  227 00000174         
+  228 00000174 E765            B                loop
+  229 00000176         
+  230 00000176         
+  231 00000176         
+  232 00000176         
+  233 00000176 00 00           ALIGN                        ; make sure the end
+                                                             of this section is
+                                                             aligned
+  234 00000178                 END                          ; end of file
+              400FE608 
+              40024400 
+              4002451C 
+              400243FC 
+Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M4 --apcs=interw
+ork --depend=.\lab3.d -o.\lab3.o -I.\RTE\_Lab3 -IC:\Users\miahm\AppData\Local\A
+
+
+
+ARM Macro Assembler    Page 6 
+
+
+rm\Packs\ARM\CMSIS\5.8.0\CMSIS\Core\Include -IC:\Users\miahm\AppData\Local\Arm\
+Packs\Keil\TM4C_DFP\1.1.0\Device\Include\TM4C123 --predefine="__EVAL SETA 1" --
+predefine="__UVISION_VERSION SETA 535" --predefine="_RTE_ SETA 1" --predefine="
+TM4C123GH6PM SETA 1" --predefine="_RTE_ SETA 1" --list=.\lab3.lst Lab3.s
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+DATA 00000000
+
+Symbol: DATA
+   Definitions
+      At line 29 in file Lab3.s
+   Uses
+      None
+Comment: DATA unused
+1 symbol
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+.text 00000000
+
+Symbol: .text
+   Definitions
+      At line 32 in file Lab3.s
+   Uses
+      None
+Comment: .text unused
+EID1 00000000
+
+Symbol: EID1
+   Definitions
+      At line 35 in file Lab3.s
+   Uses
+      At line 34 in file Lab3.s
+Comment: EID1 used once
+EID2 00000008
+
+Symbol: EID2
+   Definitions
+      At line 37 in file Lab3.s
+   Uses
+      At line 36 in file Lab3.s
+Comment: EID2 used once
+LED_OFF 000000BA
+
+Symbol: LED_OFF
+   Definitions
+      At line 136 in file Lab3.s
+   Uses
+      At line 120 in file Lab3.s
+      At line 166 in file Lab3.s
+      At line 193 in file Lab3.s
+
+LED_ON 000000AC
+
+Symbol: LED_ON
+   Definitions
+      At line 127 in file Lab3.s
+   Uses
+      At line 118 in file Lab3.s
+      At line 164 in file Lab3.s
+      At line 191 in file Lab3.s
+
+Start 00000010
+
+Symbol: Start
+   Definitions
+      At line 42 in file Lab3.s
+   Uses
+      At line 40 in file Lab3.s
+Comment: Start used once
+breath_switch 00000050
+
+Symbol: breath_switch
+   Definitions
+      At line 82 in file Lab3.s
+   Uses
+      None
+
+
+
+ARM Macro Assembler    Page 2 Alphabetic symbol ordering
+Relocatable symbols
+
+Comment: breath_switch unused
+breathe 000000E0
+
+Symbol: breathe
+   Definitions
+      At line 163 in file Lab3.s
+   Uses
+      At line 185 in file Lab3.s
+      At line 208 in file Lab3.s
+
+breathe_decrease 00000148
+
+Symbol: breathe_decrease
+   Definitions
+      At line 204 in file Lab3.s
+   Uses
+      At line 201 in file Lab3.s
+Comment: breathe_decrease used once
+breathe_descending 00000122
+
+Symbol: breathe_descending
+   Definitions
+      At line 190 in file Lab3.s
+   Uses
+      At line 211 in file Lab3.s
+Comment: breathe_descending used once
+breathe_descending_start 0000011E
+
+Symbol: breathe_descending_start
+   Definitions
+      At line 188 in file Lab3.s
+   Uses
+      At line 182 in file Lab3.s
+Comment: breathe_descending_start used once
+breathe_increase 00000106
+
+Symbol: breathe_increase
+   Definitions
+      At line 178 in file Lab3.s
+   Uses
+      At line 174 in file Lab3.s
+Comment: breathe_increase used once
+breathe_start 000000DA
+
+Symbol: breathe_start
+   Definitions
+      At line 155 in file Lab3.s
+   Uses
+      At line 85 in file Lab3.s
+Comment: breathe_start used once
+change_release 00000068
+
+Symbol: change_release
+   Definitions
+      At line 97 in file Lab3.s
+   Uses
+      At line 94 in file Lab3.s
+      At line 103 in file Lab3.s
+
+
+
+
+ARM Macro Assembler    Page 3 Alphabetic symbol ordering
+Relocatable symbols
+
+change_switch 0000005A
+
+Symbol: change_switch
+   Definitions
+      At line 89 in file Lab3.s
+   Uses
+      At line 87 in file Lab3.s
+Comment: change_switch used once
+delay 000000C8
+
+Symbol: delay
+   Definitions
+      At line 144 in file Lab3.s
+   Uses
+      At line 119 in file Lab3.s
+      At line 123 in file Lab3.s
+
+delay_breathe 00000162
+
+Symbol: delay_breathe
+   Definitions
+      At line 214 in file Lab3.s
+   Uses
+      At line 165 in file Lab3.s
+      At line 169 in file Lab3.s
+      At line 192 in file Lab3.s
+      At line 196 in file Lab3.s
+
+duty_cycle 00000090
+
+Symbol: duty_cycle
+   Definitions
+      At line 116 in file Lab3.s
+   Uses
+      At line 95 in file Lab3.s
+      At line 110 in file Lab3.s
+      At line 114 in file Lab3.s
+
+first 000000CA
+
+Symbol: first
+   Definitions
+      At line 146 in file Lab3.s
+   Uses
+      None
+Comment: first unused
+first_breathe 00000164
+
+Symbol: first_breathe
+   Definitions
+      At line 218 in file Lab3.s
+   Uses
+      None
+Comment: first_breathe unused
+increase_percent 00000076
+
+Symbol: increase_percent
+   Definitions
+      At line 105 in file Lab3.s
+
+
+
+ARM Macro Assembler    Page 4 Alphabetic symbol ordering
+Relocatable symbols
+
+   Uses
+      At line 102 in file Lab3.s
+Comment: increase_percent used once
+loop 00000042
+
+Symbol: loop
+   Definitions
+      At line 75 in file Lab3.s
+   Uses
+      At line 125 in file Lab3.s
+      At line 176 in file Lab3.s
+      At line 186 in file Lab3.s
+      At line 202 in file Lab3.s
+      At line 212 in file Lab3.s
+      At line 228 in file Lab3.s
+
+lowest 00000088
+
+Symbol: lowest
+   Definitions
+      At line 112 in file Lab3.s
+   Uses
+      At line 108 in file Lab3.s
+Comment: lowest used once
+second 000000D2
+
+Symbol: second
+   Definitions
+      At line 149 in file Lab3.s
+   Uses
+      At line 151 in file Lab3.s
+      At line 223 in file Lab3.s
+
+second_breathe 0000016C
+
+Symbol: second_breathe
+   Definitions
+      At line 221 in file Lab3.s
+   Uses
+      None
+Comment: second_breathe unused
+25 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Absolute symbols
+
+GPIO_PORTE_DATA_R 400243FC
+
+Symbol: GPIO_PORTE_DATA_R
+   Definitions
+      At line 22 in file Lab3.s
+   Uses
+      At line 76 in file Lab3.s
+      At line 90 in file Lab3.s
+      At line 98 in file Lab3.s
+      At line 129 in file Lab3.s
+      At line 138 in file Lab3.s
+      At line 170 in file Lab3.s
+      At line 197 in file Lab3.s
+
+GPIO_PORTE_DEN_R 4002451C
+
+Symbol: GPIO_PORTE_DEN_R
+   Definitions
+      At line 24 in file Lab3.s
+   Uses
+      At line 65 in file Lab3.s
+Comment: GPIO_PORTE_DEN_R used once
+GPIO_PORTE_DIR_R 40024400
+
+Symbol: GPIO_PORTE_DIR_R
+   Definitions
+      At line 23 in file Lab3.s
+   Uses
+      At line 59 in file Lab3.s
+Comment: GPIO_PORTE_DIR_R used once
+SYSCTL_RCGCGPIO_R 400FE608
+
+Symbol: SYSCTL_RCGCGPIO_R
+   Definitions
+      At line 25 in file Lab3.s
+   Uses
+      At line 47 in file Lab3.s
+Comment: SYSCTL_RCGCGPIO_R used once
+4 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+External symbols
+
+TExaS_Init 00000000
+
+Symbol: TExaS_Init
+   Definitions
+      At line 27 in file Lab3.s
+   Uses
+      At line 45 in file Lab3.s
+Comment: TExaS_Init used once
+1 symbol
+367 symbols in table
