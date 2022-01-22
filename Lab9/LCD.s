@@ -1,0 +1,156 @@
+; LCD.s
+; Student names: Zarif Hossain and Ayush RoyChoudry
+; Last modification date: change this to the last modification date or look very silly
+
+; Runs on TM4C123
+; Use SSI0 to send an 8-bit code to the ST7735 160x128 pixel LCD.
+
+; As part of Lab 7, students need to implement these LCD_WriteCommand and LCD_WriteData
+; This driver assumes two low-level LCD functions
+
+; Backlight (pin 10) connected to +3.3 V
+; MISO (pin 9) unconnected
+; SCK (pin 8) connected to PA2 (SSI0Clk)
+; MOSI (pin 7) connected to PA5 (SSI0Tx)
+; TFT_CS (pin 6) connected to PA3 (SSI0Fss)
+; CARD_CS (pin 5) unconnected
+; Data/Command (pin 4) connected to PA6 (GPIO)
+; RESET (pin 3) connected to PA7 (GPIO)
+; VCC (pin 2) connected to +3.3 V
+; Gnd (pin 1) connected to ground
+
+DC                      EQU   0x40004100
+DC_COMMAND              EQU   0
+DC_DATA                 EQU   0x40
+SSI0_DR_R               EQU   0x40008008
+SSI0_SR_R               EQU   0x4000800C
+SSI_SR_RNE              EQU   0x00000004  ; SSI Receive FIFO Not Empty
+SSI_SR_BSY              EQU   0x00000010  ; SSI Busy Bit
+SSI_SR_TNF              EQU   0x00000002  ; SSI Transmit FIFO Not Full
+
+      EXPORT   writecommand
+      EXPORT   writedata
+
+      AREA    |.text|, CODE, READONLY, ALIGN=2
+      THUMB
+      ALIGN
+
+; The Data/Command pin must be valid when the eighth bit is
+; sent.  The SSI module has hardware input and output FIFOs
+; that are 8 locations deep.  Based on the observation that
+; the LCD interface tends to send a few commands and then a
+; lot of data, the FIFOs are not used when writing
+; commands, and they are used when writing data.  This
+; ensures that the Data/Command pin status matches the byte
+; that is actually being transmitted.
+; The write command operation waits until all data has been
+; sent, configures the Data/Command pin for commands, sends
+; the command, and then waits for the transmission to
+; finish.
+; The write data operation waits until there is room in the
+; transmit FIFO, configures the Data/Command pin for data,
+; and then adds the data to the transmit FIFO.
+; NOTE: These functions will crash or stall indefinitely if
+; the SSI0 module is not initialized and enabled.
+
+; This is a helper function that sends an 8-bit command to the LCD.
+; Input: R0  8-bit command to transmit
+; Output: none
+; Assumes: SSI0 and port A have already been initialized and enabled
+writecommand
+;; --UUU-- Code to write a command to the LCD
+;1) Read SSI0_SR_R and check bit 4, 
+;2) If bit 4 is high, loop back to step 1 (wait for BUSY bit to be low)
+;3) Clear D/C=PA6 to zero
+;4) Write the command to SSI0_DR_R
+;5) Read SSI0_SR_R and check bit 4, 
+;6) If bit 4 is high, loop back to step 5 (wait for BUSY bit to be low)
+
+waitbusy
+
+	LDR R1, =SSI0_SR_R  ; load value of Sr register into r1
+	LDR R2, [R1] ; Load contents of register in r2
+	AND R3, R2, #0x10  ; Isolates bit 4 and check if its a 1  BUSY bit
+	
+	;need to check if bit 4 is high
+	CMP R3, #0x10 ; 
+	BEQ waitbusy 
+	
+	; 3. Clears D/c to 0
+	
+	LDR R2, =DC ; load dc into r2
+	MOV R3, #DC_COMMAND ; =0
+	STR R3, [R2] ; clear D/C to 0
+	
+	;Write the command to SSI0_Dr  :  r0 has the 8 BIT data we want to write
+	
+	LDR R3, =SSI0_DR_R ; address of DR
+	STR R0, [R3] ; writes the command
+	
+	;5. Read SSI0 and check bit 4
+waitbusy2
+	LDR R1, =SSI0_SR_R ; 
+	LDR R2, [R1] ;
+	AND R3, R2, #0x10 ; isolates bit 4
+	CMP R3, #0x10 ; checks to see if high
+	BEQ waitbusy2
+	;if not high, subroutine ends
+	
+	
+	
+	
+	
+	
+	
+	
+
+
+    
+    
+    BX  LR                          ;   return
+
+; This is a helper function that sends an 8-bit data to the LCD.
+; Input: R0  8-bit data to transmit
+; Output: none
+; Assumes: SSI0 and port A have already been initialized and enabled
+writedata
+;; --UUU-- Code to write data to the LCD
+;1) Read SSI0_SR_R and check bit 1, 
+;2) If bit 1 is low loop back to step 1 (wait for TNF bit to be high)
+;3) Set D/C=PA6 to one
+;4) Write the 8-bit data to SSI0_DR_R
+
+
+	;1. Read SSI0_SR_R and check bit 1
+checkagain
+	LDR R1, =SSI0_SR_R ;
+	LDR R2, [R1]; reads SSIO
+	AND R3, R2, #0x02 ; isolates bit 1
+	CMP R3, #0x02 ; checks if high or not 
+	BNE checkagain  ;if low go back to reading 
+	
+	;Set D/C TO ONE MAKE CONTENTS 0X40
+	
+	LDR R2, =DC
+	MOV R3, #DC_DATA ;  0x40
+	STR R3, [R2] ; makes contents of D/C 0x40 and sets to 1
+	
+	;4. write 8 bit data to DR
+	
+	LDR R3, =SSI0_DR_R ;
+	STR R0, [R3] ; writes 8 bit data in r0 to DR
+	
+	
+
+	
+
+
+
+
+    
+    
+    BX  LR                          ;   return
+	
+	
+    ALIGN                           ; make sure the end of this section is aligned
+    END                             ; end of file
